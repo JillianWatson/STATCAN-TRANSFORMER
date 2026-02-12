@@ -23,7 +23,8 @@ END_DATE = "2024-09-30"
 SPARK_CONFIG = {
     "spark.driver.memory": "4g",
     "spark.executor.memory": "4g",
-    "spark.sql.shuffle.partitions": "10"
+    "spark.sql.shuffle.partitions": "10",
+    "spark.sql.execution.arrow.pyspark.enabled": "false"
 }
 
 # functions

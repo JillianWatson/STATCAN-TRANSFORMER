@@ -20,7 +20,7 @@ def load_csv(spark, file_path, animal_type, flow_type):
 
         result = result.cache()
         result.count()
-        
+
         return result
     
     finally:
@@ -61,7 +61,7 @@ def load_all_files(spark):
 
     return all_trade
 
-#display data
+# display data
 def preview(df, n=5):
     df.printSchema()
     df.show(n, truncate=False)

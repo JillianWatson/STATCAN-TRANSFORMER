@@ -1,5 +1,6 @@
 import config
 import data_loader
+import data_cleaner
 
 def main():
     print("Initializing Spark Session...")
@@ -9,6 +10,9 @@ def main():
 
         raw_data = data_loader.load_all_files(spark)
         data_loader.preview(raw_data)
+
+        data_prepped = data_cleaner.clean_and_aggregate(raw_data)
+        data_cleaner.preview_aggregated(data_prepped, n=10)
     
     except Exception as e:
         print(f"\n Error during preprocessing: {str(e)}")

@@ -2,7 +2,7 @@ import config
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import (
     col, lit, to_date, date_format, year, month, 
-    sum as _sum, avg, count, when, coalesce, concat_ws, min as _min, max as _max
+    sum as _sum, count, when, coalesce, concat_ws, min as _min, max as _max
 )
 
 # Ensure all entries adhere to the date range (oct2019 - sept2024)
@@ -52,8 +52,6 @@ def validate_date_range(df: DataFrame) -> DataFrame:
 # Handle null values
 def clean_data(df: DataFrame) -> DataFrame:
     
-    initial_count = df.count()
-    
     null_checks = df.select(
         _sum(when(col("Period").isNull(), 1).otherwise(0)).alias("null_period"),
         _sum(when(col("State").isNull(), 1).otherwise(0)).alias("null_state"),
@@ -63,56 +61,49 @@ def clean_data(df: DataFrame) -> DataFrame:
         _sum(when(col("Flow_Type").isNull(), 1).otherwise(0)).alias("null_flow_type")
     ).collect()[0]
     
-    print("\nNull value counts before cleaning: ")
-    for field, count in null_checks.asDict().items():
-        if count > 0:
-            print(f"  {field}: {count}")
-        else:
-            print(f" 0")
+    null_fields = {field: num for field, num in null_checks.asDict().items() if num > 0 }
+    if null_fields:
+        print("\nNull values identified: ")
+        for field, num in null_fields.items():
+            print(f"  {field}: {num}")
+
+        #remove nulls from df if found
+        df = df.filter(
+            col("Period").isNotNull() &
+            col("State").isNotNull() &
+            col("Value ($)").isNotNull() &
+            col("Animal_Type").isNotNull() &
+            col("Flow_Type").isNotNull()
+        )
+    else:
+        print("  No null values found in dataframe")
     
-    df_clean = df.filter(
-        col("Period").isNotNull() &
-        col("State").isNotNull() &
-        col("Value ($)").isNotNull() &
-        col("Animal_Type").isNotNull() &
-        col("Flow_Type").isNotNull()
-    )
-    
-    #if null quantities found, set to 0
-    df_clean = df_clean.withColumn(
+    #if null values found, default them to 0
+    df = df.withColumn(
         "Quantity", 
         coalesce(col("Quantity"), lit(0))
-    )
+        ).filter((col("Value ($)") >= 0) & (col("Quantity") >=0))
     
-    #ensure non-negative values
-    df_clean = df_clean.filter(
-        (col("Value ($)") >= 0) &
-        (col("Quantity") >= 0)
-    )
+    return df
+
+
+# Add temporal features (month, year, date) needed for analyses
+def add_time_features(df: DataFrame) -> DataFrame:
+
+    df_with_time = df.withColumn("Year", year(col("Period"))) \
+                     .withColumn("Month", month(col("Period"))) \
+                     .withColumn("Year_Month", date_format(col("Period"), "yyyy-MM"))
     
-    final_count = df_clean.count()
+    print("Added columns: Year, Month, Year_Month")
     
-    print(f"\nRecords before cleaning: {initial_count}")
-    print(f"Records after cleaning: {final_count}")
-    print(f"Records removed: {initial_count - final_count}")
-    print(f"Data retention rate: {(final_count/initial_count)*100:.2f}%")
+    #distribution by year
+    print("\nRecords by year:")
+    df_with_time.groupBy("Year") \
+                .count() \
+                .orderBy("Year") \
+                .show()
     
-    #data quality summary
-    print("\n--- Data Quality Summary ---")
-    quality_stats = df_clean.select(
-        count("*").alias("total_records"),
-        _sum("Value ($)").alias("total_value"),
-        _sum("Quantity").alias("total_quantity"),
-        avg("Value ($)").alias("avg_value"),
-        avg("Quantity").alias("avg_quantity")
-    ).collect()[0]
-    
-    print(f"Total trade value: ${quality_stats['total_value']:,.2f}")
-    print(f"Total quantity traded: {quality_stats['total_quantity']:,.0f} animals")
-    print(f"Average trade value: ${quality_stats['avg_value']:,.2f}")
-    print(f"Average quantity per record: {quality_stats['avg_quantity']:.2f} animals")
-    
-    return df_clean
+    return df_with_time
 
 
 def clean_and_aggregate(df: DataFrame) -> DataFrame:
@@ -133,6 +124,9 @@ def clean_and_aggregate(df: DataFrame) -> DataFrame:
     
     #clean data (handle nulls, validate values)
     df = clean_data(df)
+
+    #add temporal features
+    df = add_time_features(df)
 
     print("End data cleaning")
     print(f"{'='*10}")

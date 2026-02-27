@@ -2,6 +2,7 @@ import config
 import data_loader
 import data_cleaner
 from pyspark.sql.functions import col
+import commodity_mapper
 
 def main():
     print("Initializing Spark Session...")
@@ -15,10 +16,9 @@ def main():
         data_prepped = data_cleaner.clean_and_aggregate(raw_data)
         data_cleaner.preview_aggregated(data_prepped, n=10)
 
-        #un-comment to view unique commodities in the dataset
+        #uncomment to view unique commodities in the dataset
         #data_prepped.select("Commodity").distinct().orderBy("Commodity").show(60, truncate=False)
-        data_prepped.filter(col("Commodity").like("0101.21.00 %")) \
-        .select("Commodity", "Flow_Type").distinct().show(truncate=False)
+        commodity_mapper.preview_commodity_mapping(data_prepped)
     
     except Exception as e:
         print(f"\n Error during preprocessing: {str(e)}")

@@ -4,6 +4,7 @@ from pyspark.sql.functions import (
     col, lit, to_date, date_format, year, month, 
     sum as _sum, count, when, coalesce, concat_ws, min as _min, max as _max
 )
+import commodity_mapper
 
 # Ensure all entries adhere to the date range (oct2019 - sept2024)
 def validate_date_range(df: DataFrame) -> DataFrame:
@@ -90,18 +91,13 @@ def clean_data(df: DataFrame) -> DataFrame:
 # Add temporal features (month, year, date) needed for analyses
 def add_time_features(df: DataFrame) -> DataFrame:
 
-    df_with_time = df.withColumn("Year", year(col("Period"))) \
-                     .withColumn("Month", month(col("Period"))) \
-                     .withColumn("Year_Month", date_format(col("Period"), "yyyy-MM"))
+    df_with_time = df.withColumn("Year", year(col("Period"))).withColumn("Month", month(col("Period"))).withColumn("Year_Month", date_format(col("Period"), "yyyy-MM"))
     
     print("Added columns: Year, Month, Year_Month")
     
     #distribution by year
     print("\nRecords by year:")
-    df_with_time.groupBy("Year") \
-                .count() \
-                .orderBy("Year") \
-                .show()
+    df_with_time.groupBy("Year").count().orderBy("Year").show()
     
     return df_with_time
 
@@ -151,6 +147,9 @@ def clean_and_aggregate(df: DataFrame) -> DataFrame:
 
     #add temporal features
     df = add_time_features(df)
+
+    #map commodity labels and filter out-of-scope commodities
+    df = commodity_mapper.map_commodity_labels(df)
 
     print("End data cleaning")
     print(f"{'='*10}")

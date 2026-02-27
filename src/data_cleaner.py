@@ -106,6 +106,30 @@ def add_time_features(df: DataFrame) -> DataFrame:
     return df_with_time
 
 
+def aggregate_trade_series(df: DataFrame) -> DataFrame:
+
+    monthly_agg = df.groupBy(
+        "Year_Month",
+        "Period",
+        "State",
+        "Animal_Type",
+        "Flow_Type",
+        "Commodity"
+    ).agg(
+        _sum("Value ($)").alias("Total_Value"),
+        _sum("Quantiy").alias("Total_Quantity"),
+        count("*").alias("Num_Transactions")
+    )
+
+    #add column for unit price of livestock
+    monthly_agg = monthly_agg.withColumn(
+        "Avg_Unit_Price",
+        when(col("Total_Quantity") > 0,
+            col("Total_Value") / col("Total_Quantity"))
+        .otherwise(0)
+    )
+
+
 def clean_and_aggregate(df: DataFrame) -> DataFrame:
     """
     Main pipeline function that runs all cleaning and aggregation steps.

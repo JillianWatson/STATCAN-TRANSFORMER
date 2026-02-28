@@ -1,8 +1,8 @@
 import config
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import (
-    col, lit, to_date, date_format, year, month, 
-    sum as _sum, count, when, coalesce, concat_ws, min as _min, max as _max
+    col, lit, date_format, year, month, 
+    sum as _sum, avg, count, when, coalesce, concat_ws, min as _min, max as _max
 )
 import commodity_mapper
 
@@ -102,6 +102,7 @@ def add_time_features(df: DataFrame) -> DataFrame:
     return df_with_time
 
 
+# Aggregate multiple transactions per month into one row per unique trading series
 def aggregate_trade_series(df: DataFrame) -> DataFrame:
 
     monthly_agg = df.groupBy(
@@ -110,10 +111,10 @@ def aggregate_trade_series(df: DataFrame) -> DataFrame:
         "State",
         "Animal_Type",
         "Flow_Type",
-        "Commodity"
+        "Commodity_Label"
     ).agg(
         _sum("Value ($)").alias("Total_Value"),
-        _sum("Quantiy").alias("Total_Quantity"),
+        _sum("Quantity").alias("Total_Quantity"),
         count("*").alias("Num_Transactions")
     )
 
@@ -124,6 +125,38 @@ def aggregate_trade_series(df: DataFrame) -> DataFrame:
             col("Total_Value") / col("Total_Quantity"))
         .otherwise(0)
     )
+
+    #unique series id
+    monthly_agg = monthly_agg.withColumn(
+        "SeriesID",
+        concat_ws("_", col("State"), col("Animal_Type"), col("Flow_Type"), col("Commodity_Label"))
+    )
+
+    agg_count = monthly_agg.count()
+    unique_series = monthly_agg.select("SeriesID").distinct().count()
+
+    print(f"Total monthly records: {agg_count}")
+    print(f"Unique trading series: {unique_series}")
+
+    print("\nTop 10 trading series by total value:")
+    monthly_agg.groupBy("SeriesID") \
+               .agg(_sum("Total_Value").alias("Total_Trade_Value")) \
+               .orderBy(col("Total_Trade_Value").desc()) \
+               .show(10, truncate=False)
+
+    coverage = monthly_agg.groupBy("SeriesID").agg(count("*").alias("Num_Months"))
+    coverage_stats = coverage.select(
+        avg("Num_Months").alias("Avg_Months"),
+        count("*").alias("Total_Series")
+    ).collect()[0]
+
+    full_coverage = coverage.filter(col("Num_Months") == 60).count()
+
+    print(f"\nAverage months per series: {coverage_stats['Avg_Months']:.2f}")
+    print(f"Series with complete 60-month coverage: {full_coverage}")
+    print(f"Series with partial coverage: {coverage_stats['Total_Series'] - full_coverage}")
+
+    return monthly_agg
 
 
 def clean_and_aggregate(df: DataFrame) -> DataFrame:
@@ -150,6 +183,9 @@ def clean_and_aggregate(df: DataFrame) -> DataFrame:
 
     #map commodity labels and filter out-of-scope commodities
     df = commodity_mapper.map_commodity_labels(df)
+
+    #
+    df = aggregate_trade_series(df)
 
     print("End data cleaning")
     print(f"{'='*10}")

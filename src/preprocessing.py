@@ -11,13 +11,8 @@ def main():
     try:
 
         raw_data = data_loader.load_all_files(spark)
-        data_loader.preview(raw_data)
-
         data_prepped = data_cleaner.clean_and_aggregate(raw_data)
-        data_cleaner.preview_aggregated(data_prepped, n=10)
 
-        #uncomment to view unique commodities in the dataset
-        #data_prepped.select("Commodity").distinct().orderBy("Commodity").show(60, truncate=False)
         commodity_mapper.preview_commodity_mapping(data_prepped)
     
     except Exception as e:

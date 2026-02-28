@@ -51,6 +51,6 @@ def map_commodity_labels(df: DataFrame) -> DataFrame:
 def preview_commodity_mapping(df: DataFrame) -> DataFrame:
     
     df.select(
-        "Commodity", "Commodity_Label"
+        "Commodity_Label"
     ).distinct().orderBy("Commodity_Label").show(60, truncate=False)
 

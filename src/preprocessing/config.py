@@ -2,17 +2,17 @@ from pyspark.sql import SparkSession
 from pathlib import Path
 
 # project directory paths
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 RAW_DATA_DIR = DATA_DIR / "raw"
 
 # data file paths
 DATA_FILES = {
-    "bovine_imports": RAW_DATA_DIR / "bovine_imports.csv",
-    "bovine_exports": RAW_DATA_DIR / "bovine_exports.csv",
-    "equine_imports": RAW_DATA_DIR / "equine_imports.csv",
-    "equine_exports": RAW_DATA_DIR / "equine_exports.csv"
+    "bovine_imports": RAW_DATA_DIR / "trade" / "bovine_imports.csv",
+    "bovine_exports": RAW_DATA_DIR / "trade" / "bovine_exports.csv",
+    "equine_imports": RAW_DATA_DIR / "trade" / "equine_imports.csv",
+    "equine_exports": RAW_DATA_DIR / "trade" / "equine_exports.csv"
 }
 
 # (constants) Temporal range for analysis

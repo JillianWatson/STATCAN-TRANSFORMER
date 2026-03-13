@@ -1,4 +1,4 @@
-import config
+import src.preprocessing.config as config
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import lit
 import tempfile

@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, create_map, lit
 from itertools import chain
-from commodity_map import COMMODITY_MAP
+from src.references.commodity_map import COMMODITY_MAP
 
 def map_commodity_labels(df: DataFrame) -> DataFrame:
 

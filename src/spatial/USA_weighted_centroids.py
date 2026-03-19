@@ -21,8 +21,8 @@ def fetch_counties():
     """
     try:
         load_counties = gpd.read_file(COUNTY_URL)
-        print(load_counties.crs)
-        subset_counties = load_counties[['GEOID', 'STATEFP', 'NAME', 'geometry']]
+        subset_counties = load_counties[['GEOID', 'STATEFP', 'geometry']]
+
         return subset_counties
     
     except Exception as e:
@@ -54,18 +54,58 @@ def fetch_nass_inventory():
         
         df = pd.DataFrame(data["data"])
         df = df[["state_name", "state_ansi", "county_ansi", "Value"]]
-        print(df.head())
 
+        df["Value"] = df["Value"].str.replace(',', '', regex=False)
+        df["Value"] = pd.to_numeric(df["Value"], errors='coerce')
+        
+        df = df.dropna(subset=["Value"])
+        
         return df
 
     except Exception as e:
         print(f"Failed to fetch NASS cattle inventories per county: {e}")
         raise
+
+
+# to be used on census geopandas df
+def filter_contiguous_states(df: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    
+    df = df.copy()
+    #STATEFP values that represent American Territories, Alaska, and Hawaii
+    removal_list = ["02", "15", "72", "78", "66", "69", "60"]
+    contig_states = df[~df["STATEFP"].isin(removal_list)]
+
+    return contig_states
+
+
+# to be used on NASS pandas df
+def build_nass_geoid(df: pd.DataFrame) -> pd.DataFrame:
+
+    df = df.copy()
+    df["GEOID"] = df["state_ansi"].str.zfill(2) + df["county_ansi"].str.zfill(3)
+
+    return df
+
+
+# join geodf of USA counties with NASS cattle stats to produce a geodf
+def join_dataframes(gdf: gpd.GeoDataFrame, df: pd.DataFrame) -> gpd.GeoDataFrame:
+    result = gdf.merge(df, how="inner", on="GEOID")
+
+    return result
+
     
 def main():
 
-    fetch_counties()
-    fetch_nass_inventory()
+    raw_county_df = fetch_counties()
+    raw_nass_df = fetch_nass_inventory()
+    
+    contiguous_states = filter_contiguous_states(raw_county_df)
+    nass_df = build_nass_geoid(raw_nass_df)
+
+    resulting_gdf = join_dataframes(contiguous_states, nass_df)
+    print(resulting_gdf.head())
+    print(resulting_gdf.isna().sum())
+    print(resulting_gdf.shape)
 
 
 if __name__ == "__main__":

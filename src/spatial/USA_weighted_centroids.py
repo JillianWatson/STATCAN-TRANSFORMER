@@ -1,4 +1,6 @@
+import math
 from dotenv import load_dotenv
+from src.preprocessing.config import PROJECT_ROOT
 import os
 import geopandas as gpd
 import requests
@@ -14,6 +16,10 @@ COUNTY_URL = 'https://www2.census.gov/geo/tiger/TIGER2022/COUNTY/tl_2022_us_coun
 AB_PORT_LAT = 49.001291
 AB_PORT_LON = -111.960102
 
+#location of output csv that includes USA states with their haversine distance from AB Border and cattle-density weighted centroids 
+OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "usa_weighted_centroids.csv"
+
+
 def fetch_counties():
     """
     Load USA Census Counties from USA Census Bureau
@@ -21,7 +27,7 @@ def fetch_counties():
     """
     try:
         load_counties = gpd.read_file(COUNTY_URL)
-        subset_counties = load_counties[['GEOID', 'STATEFP', 'geometry']]
+        subset_counties = load_counties[["GEOID", "STATEFP", "geometry"]]
 
         return subset_counties
     
@@ -88,12 +94,57 @@ def build_nass_geoid(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # join geodf of USA counties with NASS cattle stats to produce a geodf
+# resulting geodf stats:
+# shape: (2997, 7)
+# dtype: int64
 def join_dataframes(gdf: gpd.GeoDataFrame, df: pd.DataFrame) -> gpd.GeoDataFrame:
     result = gdf.merge(df, how="inner", on="GEOID")
 
     return result
 
+
+def compute_county_centroids(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    projected_geodf = gdf.to_crs("EPSG:5070")
+    projected_geodf["centroid"] = projected_geodf.geometry.centroid
+
+    centroids_wgs84 = projected_geodf["centroid"].to_crs("EPSG:4326")
+
+    projected_geodf["centroid_lat"] = centroids_wgs84.y
+    projected_geodf["centroid_lon"] = centroids_wgs84.x
+
+    return projected_geodf
+
+
+# use weighted average formula to recalculate centroids
+# sum(lat_i × Value_i) / sum(Value_i)
+def compute_state_cattle_summary(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
+    df = gdf.groupby("state_name").agg( 
+                weighted_lat = ("centroid_lat", lambda x: (x * gdf.loc[x.index, "Value"]).sum() / gdf.loc[x.index, "Value"].sum()),
+                weighted_lon = ("centroid_lon", lambda x: (x * gdf.loc[x.index, "Value"]).sum() / gdf.loc[x.index, "Value"].sum()),
+                total_inventory = ("Value", "sum")
+                )
+
+    return df
+
+
+#calculates haversine distance between two locations
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+
+    dist_lat = lat2 - lat1
+    dist_lon = lon2 - lon1
+
+    a = math.sin(dist_lat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dist_lon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     
+    distance = 6371.0 * c
+
+    return distance
+
+
 def main():
 
     raw_county_df = fetch_counties()
@@ -102,10 +153,14 @@ def main():
     contiguous_states = filter_contiguous_states(raw_county_df)
     nass_df = build_nass_geoid(raw_nass_df)
 
-    resulting_gdf = join_dataframes(contiguous_states, nass_df)
-    print(resulting_gdf.head())
-    print(resulting_gdf.isna().sum())
-    print(resulting_gdf.shape)
+    joined_gdf = join_dataframes(contiguous_states, nass_df)
+
+    get_centroid = compute_county_centroids(joined_gdf)
+    weighted_centroids = compute_state_cattle_summary(get_centroid)
+
+    weighted_centroids["distance_to_alberta"] = weighted_centroids.apply(lambda row: haversine(row["weighted_lat"], row["weighted_lon"], AB_PORT_LAT, AB_PORT_LON), axis= 1)
+
+    weighted_centroids.reset_index().to_csv(OUTPUT_PATH, index=False)
 
 
 if __name__ == "__main__":

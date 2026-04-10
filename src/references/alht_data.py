@@ -9,5 +9,7 @@ ALHT_PATH = os.getenv("ALHT_LOCAL_DBF")
 df = gpd.read_file(ALHT_PATH)
 
 print(df.columns.tolist())
-print(df.head())
-print(df.GEOID)
+
+for col in ["map_tick_s", "tick_statu", "p_status_t", "p_status_c", "dec_25_tic"]:
+    print(f"\n{col}:")
+    print(df[col].value_counts(dropna=False))

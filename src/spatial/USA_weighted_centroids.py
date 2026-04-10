@@ -17,7 +17,9 @@ AB_PORT_LAT = 49.001291
 AB_PORT_LON = -111.960102
 
 #location of output csv that includes USA states with their haversine distance from AB Border and cattle-density weighted centroids 
-OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "usa_weighted_centroids.csv"
+CENTROIDS_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "usa_weighted_centroids.csv"
+#location of csv that holds cattle totals for each state/county to be used with tick data in src/references/alht_data.py
+CATTLE_INVENTORY_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "cattle_inventories.csv"
 
 
 def fetch_counties():
@@ -154,13 +156,16 @@ def main():
     nass_df = build_nass_geoid(raw_nass_df)
 
     joined_gdf = join_dataframes(contiguous_states, nass_df)
+    
+    cattle_inventory = joined_gdf[["GEOID", "state_name", "Value"]]
+    cattle_inventory.to_csv(CATTLE_INVENTORY_OUTPUT_PATH, index=False)
 
     get_centroid = compute_county_centroids(joined_gdf)
     weighted_centroids = compute_state_cattle_summary(get_centroid)
 
     weighted_centroids["distance_to_alberta"] = weighted_centroids.apply(lambda row: haversine(row["weighted_lat"], row["weighted_lon"], AB_PORT_LAT, AB_PORT_LON), axis= 1)
 
-    weighted_centroids.reset_index().to_csv(OUTPUT_PATH, index=False)
+    weighted_centroids.reset_index().to_csv(CENTROIDS_OUTPUT_PATH, index=False)
 
 
 if __name__ == "__main__":

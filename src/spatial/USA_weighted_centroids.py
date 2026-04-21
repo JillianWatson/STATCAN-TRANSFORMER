@@ -1,6 +1,6 @@
 import math
 from dotenv import load_dotenv
-from src.preprocessing.config import PROJECT_ROOT
+from src.preprocessing.config import PROCESSED_DATA_DIR
 import os
 import geopandas as gpd
 import requests
@@ -17,9 +17,9 @@ AB_PORT_LAT = 49.001291
 AB_PORT_LON = -111.960102
 
 #location of output csv that includes USA states with their haversine distance from AB Border and cattle-density weighted centroids 
-CENTROIDS_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "usa_weighted_centroids.csv"
+CENTROIDS_OUTPUT_PATH = PROCESSED_DATA_DIR / "spatial" / "usa_weighted_centroids.csv"
 #location of csv that holds cattle totals for each state/county to be used with tick data in src/references/alht_data.py
-CATTLE_INVENTORY_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "cattle_inventories.csv"
+CATTLE_INVENTORY_OUTPUT_PATH = PROCESSED_DATA_DIR / "spatial" / "cattle_inventories.csv"
 
 
 def fetch_counties():
@@ -29,7 +29,7 @@ def fetch_counties():
     """
     try:
         load_counties = gpd.read_file(COUNTY_URL)
-        subset_counties = load_counties[["GEOID", "STATEFP", "geometry"]]
+        subset_counties = load_counties[["GEOID", "STATEFP", "NAME", "geometry"]]
 
         return subset_counties
     
@@ -97,7 +97,7 @@ def build_nass_geoid(df: pd.DataFrame) -> pd.DataFrame:
 
 # join geodf of USA counties with NASS cattle stats to produce a geodf
 # resulting geodf stats:
-# shape: (2997, 7)
+# shape: (2997, 8)
 # dtype: int64
 def join_dataframes(gdf: gpd.GeoDataFrame, df: pd.DataFrame) -> gpd.GeoDataFrame:
     result = gdf.merge(df, how="inner", on="GEOID")
@@ -156,8 +156,11 @@ def main():
     nass_df = build_nass_geoid(raw_nass_df)
 
     joined_gdf = join_dataframes(contiguous_states, nass_df)
+
+    print(joined_gdf.info())
     
-    cattle_inventory = joined_gdf[["GEOID", "state_name", "Value"]]
+    cattle_inventory = joined_gdf[["GEOID", "state_name", "NAME", "Value"]]
+    cattle_inventory["GEOID"] = cattle_inventory["GEOID"].astype(str).str.zfill(5)
     cattle_inventory.to_csv(CATTLE_INVENTORY_OUTPUT_PATH, index=False)
 
     get_centroid = compute_county_centroids(joined_gdf)

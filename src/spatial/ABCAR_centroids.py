@@ -1,13 +1,12 @@
-from src.preprocessing.config import PROJECT_ROOT
+from src.preprocessing.config import PROJECT_ROOT, RAW_DATA_DIR, PROCESSED_DATA_DIR
 from pathlib import Path
 import geopandas as gpd
 from dotenv import load_dotenv
-import os
 
-load_dotenv()
-CARS_PATH = os.getenv("CARS_LOCAL_FILE")
+
+CARS_PATH = RAW_DATA_DIR / "shapefiles" / "ag_census_shp" / "lcar000b21a_e.shp"
 cars = gpd.read_file(CARS_PATH)
-OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "spatial" / "alberta_car_centroids.csv"
+OUTPUT_PATH = PROCESSED_DATA_DIR / "spatial" / "alberta_car_centroids.csv"
 
 print(cars.columns.tolist())
 print(cars.head())
